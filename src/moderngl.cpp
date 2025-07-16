@@ -8169,16 +8169,65 @@ static PyObject * MGLContext_write_uniform(MGLContext * self, PyObject * args) {
     Py_RETURN_NONE;
 }
 
-static PyObject * MGLContext_set_uniform_handle(MGLContext * self, PyObject * args) {
-    int program_obj;
+static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObject *args) {
+    unsigned int program_obj;
     int location;
-    unsigned long long handle;
+    PyObject *handle_arg; // Generic object for the third argument
 
-    if (!PyArg_ParseTuple(args, "IIK", &program_obj, &location, &handle)) {
-        return NULL;
+    // Use 'O' to get the third argument as a PyObject*
+    if (!PyArg_ParseTuple(args, "IIO", &program_obj, &location, &handle_arg)) {
+        return nullptr;
     }
 
-    self->gl.ProgramUniformHandleui64ARB(program_obj, location, handle);
+    // Case 1: The argument is a single integer
+    if (PyLong_Check(handle_arg)) {
+        const unsigned long long handle = PyLong_AsUnsignedLongLong(handle_arg);
+        if (PyErr_Occurred()) {
+            // Error during conversion (e.g., overflow)
+            return nullptr;
+        }
+        self->gl.ProgramUniformHandleui64ARB(program_obj, location, handle);
+
+    // Case 2: The argument is a list
+    } else if (PyList_Check(handle_arg)) {
+        const Py_ssize_t count = PyList_Size(handle_arg);
+        if (count == 0) {
+            // Handle empty list if necessary, maybe it's a no-op
+            Py_RETURN_NONE;
+        }
+
+        // Allocate memory for the C array of handles
+        auto* handles = static_cast<GLuint64*>(PyMem_Malloc(count * sizeof(GLuint64)));
+        if (!handles) {
+            return PyErr_NoMemory();
+        }
+
+        // Iterate through the Python list and populate the C array
+        for (Py_ssize_t i = 0; i < count; ++i) {
+            PyObject *item = PyList_GetItem(handle_arg, i); // Borrows reference
+            if (!PyLong_Check(item)) {
+                PyMem_Free(handles); // Clean up allocated memory before returning
+                PyErr_SetString(PyExc_TypeError, "All items in handle list must be integers.");
+                return nullptr;
+            }
+            handles[i] = static_cast<GLuint64>(PyLong_AsUnsignedLongLong(item));
+            if (PyErr_Occurred()) {
+                PyMem_Free(handles);
+                return nullptr; // Conversion error
+            }
+        }
+
+        self->gl.ProgramUniformHandleui64vARB(program_obj, location, static_cast<GLsizei>(count), handles);
+
+        // Free the memory after use
+        PyMem_Free(handles);
+
+    // Case 3: The argument is an unsupported type
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Handle must be an integer or a list of integers.");
+        return nullptr;
+    }
+
     Py_RETURN_NONE;
 }
 

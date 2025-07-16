@@ -675,7 +675,7 @@ struct GLMethods {
     // PFNGLUNIFORMHANDLEUI64ARBPROC UniformHandleui64ARB;
     // PFNGLUNIFORMHANDLEUI64VARBPROC UniformHandleui64vARB;
     PFNGLPROGRAMUNIFORMHANDLEUI64ARBPROC ProgramUniformHandleui64ARB;
-    // PFNGLPROGRAMUNIFORMHANDLEUI64VARBPROC ProgramUniformHandleui64vARB;
+    PFNGLPROGRAMUNIFORMHANDLEUI64VARBPROC ProgramUniformHandleui64vARB;
     // PFNGLISTEXTUREHANDLERESIDENTARBPROC IsTextureHandleResidentARB;
     // PFNGLISIMAGEHANDLERESIDENTARBPROC IsImageHandleResidentARB;
     // PFNGLVERTEXATTRIBL1UI64ARBPROC VertexAttribL1ui64ARB;
@@ -1974,7 +1974,7 @@ GLMethods load_gl_methods(PyObject * loader) {
     // load(UniformHandleui64ARB);
     // load(UniformHandleui64vARB);
     load(ProgramUniformHandleui64ARB);
-    // load(ProgramUniformHandleui64vARB);
+    load(ProgramUniformHandleui64vARB);
     // load(IsTextureHandleResidentARB);
     // load(IsImageHandleResidentARB);
     // load(VertexAttribL1ui64ARB);
