@@ -84,7 +84,9 @@ class Uniform:
 
     @handle.setter
     def handle(self, value):
-        return self.ctx._set_uniform_handle(self.program_obj, self.location, value)
+        if isinstance(value, list):
+            value = value[:self.array_length]
+        self.ctx._set_uniform_handle(self.program_obj, self.location, value)
 
     def read(self):
         return self.ctx._read_uniform(
