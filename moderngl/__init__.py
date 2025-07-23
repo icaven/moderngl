@@ -1834,6 +1834,19 @@ class Context:
         return False
 
     @property
+    def supports_bindless(self):
+        if self.version_code >= 440:
+            return True
+
+        if "GL_ARB_bindless_texture" in self.extensions:
+            return True
+
+        if "GL_NV_bindless_texture" in self.extensions:
+            return True
+
+        return False
+
+    @property
     def info(self):
         if self._info is None:
             self._info = self.mglo.info
