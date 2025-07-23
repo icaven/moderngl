@@ -56,9 +56,9 @@ class CrateExample(Example):
         self.mvp = self.prog['Mvp']
         self.light = self.prog['Light']
 
-        self.scene = self.load_scene('crate.obj')
+        self.scene = self.load_scene('../data/models/crate.obj')
         self.vao = self.scene.root_nodes[0].mesh.vao.instance(self.prog)
-        self.texture = self.load_texture_2d('crate.png')
+        self.texture = self.load_texture_2d('../data/textures/crate.png')
 
         self.prog['Texture'].handle = self.texture.get_handle()
 
