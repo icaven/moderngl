@@ -182,3 +182,23 @@ The commit hash can be found in the [Releases](https://github.com/moderngl/moder
 
 - [ModernGL Discord Server](https://discord.gg/UEMtW8D)
 - [Contributors](https://github.com/moderngl/moderngl/graphs/contributors)
+<!--MD TOC START-->
+<!-- vale off -->
+
+---
+# More docs in this repo
+
+- [.](./)
+    - [CHANGELOG](./CHANGELOG.md)
+- [examples](examples/)
+    - [README](examples/README.md)
+    - [old](examples/old/)
+        - [README](examples/old/README.md)
+- [tests](tests/)
+    - [gc](tests/gc/)
+        - [README](tests/gc/README.md)
+
+---
+
+<!-- vale on -->
+<!--MD TOC END-->
