@@ -42,6 +42,39 @@ def test_texture_properties(ctx):
     assert tex.filter == (moderngl.LINEAR, moderngl.LINEAR)
     assert tex.repeat_x is True
     assert tex.repeat_y is True
+    assert dict(tex.wrap) == {"x": "repeat", "y": "repeat"}
+    tex.wrap = {"x": "repeat", "y": "repeat", "z": "repeat"}  # ignores the "z" key for Texture
+    assert dict(tex.wrap) == {"x": "repeat", "y": "repeat"}
+    tex.wrap = {"s": "mirrored_repeat", "t": "clamp_to_edge"}  # "s" and "t" are synonyms for "x" and "y"
+    assert dict(tex.wrap) == {"x": "mirrored_repeat", "y": "clamp_to_edge"}
+    tex.wrap['x'] = 'repeat'  # Set just one of the values
+    assert dict(tex.wrap) == {"x": "repeat", "y": "clamp_to_edge"}
+    try:
+        # if "s" and "x" (or "t" and "y", or "r" and "z") are both present, they must be the same
+        tex.wrap = {"s": "mirrored_repeat", "x": "clamp_to_edge"}
+        exception_caught = False
+    except moderngl.Error:
+        exception_caught = True
+    assert exception_caught
+    try:
+        # if "s" and "x" (or "t" and "y", or "r" and "z") are both present, they can be the same
+        tex.wrap = {"y": "mirrored_repeat", "t": "mirrored_repeat"}
+        duplicate_allowed = True
+    except moderngl.Error as e:
+        duplicate_allowed = False
+    assert duplicate_allowed
+    try:
+        tex.wrap['x'] = 'invalid'
+        invalid_value_exception_caught = False
+    except moderngl.Error:
+        invalid_value_exception_caught = True
+    assert invalid_value_exception_caught
+    try:
+        tex.wrap['invalid'] = 'repeat'
+        unknown_key_ignored = True
+    except RuntimeError:
+        unknown_key_ignored = False
+    assert unknown_key_ignored
     assert tex.dtype == 'f1'
     assert tex.anisotropy == 0.0
 
