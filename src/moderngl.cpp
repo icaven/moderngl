@@ -77,6 +77,49 @@ struct MGLDataType {
     bool float_type;
 };
 
+// Encapsulates bindless texture handle state
+struct BindlessHandleState {
+    unsigned long long handle;
+    bool obtained;
+    bool resident;
+
+    BindlessHandleState() : handle(0), obtained(false), resident(false) {}
+
+    // Get or create the handle
+    unsigned long long get_handle(const GLMethods & gl, const int texture_obj) {
+        if (!obtained) {
+            handle = gl.GetTextureHandleARB(texture_obj);
+            obtained = true;
+        }
+        return handle;
+    }
+
+    // Update residency state
+    void set_residency(const GLMethods & gl, const bool should_be_resident) {
+        if (should_be_resident && !resident) {
+            gl.MakeTextureHandleResidentARB(handle);
+            resident = true;
+        } else if (!should_be_resident && resident) {
+            gl.MakeTextureHandleNonResidentARB(handle);
+            resident = false;
+        }
+    }
+
+    // Release the handle (make non-resident if needed)
+    void release(const GLMethods & gl) {
+        if (obtained && resident) {
+            gl.MakeTextureHandleNonResidentARB(handle);
+        }
+        reset();
+    }
+
+    void reset() {
+        handle = 0;
+        obtained = false;
+        resident = false;
+    }
+};
+
 struct MGLBuffer {
     PyObject_HEAD
     MGLContext * context;
@@ -333,6 +376,7 @@ struct MGLTexture {
     bool repeat_y;
     bool external;
     bool released;
+    BindlessHandleState bindless_state;
 };
 
 struct MGLTexture3D {
@@ -351,6 +395,7 @@ struct MGLTexture3D {
     bool repeat_y;
     bool repeat_z;
     bool released;
+    BindlessHandleState bindless_state;
 };
 
 struct MGLTextureArray {
@@ -369,6 +414,7 @@ struct MGLTextureArray {
     bool repeat_y;
     float anisotropy;
     bool released;
+    BindlessHandleState bindless_state;
 };
 
 struct MGLTextureCube {
@@ -386,6 +432,7 @@ struct MGLTextureCube {
     int compare_func;
     float anisotropy;
     bool released;
+    BindlessHandleState bindless_state;
 };
 
 struct MGLVertexArray {
@@ -3766,6 +3813,7 @@ static PyObject * MGLContext_texture(MGLContext * self, PyObject * args) {
     gl.ActiveTexture(GL_TEXTURE0 + self->default_texture_unit);
 
     MGLTexture * texture = PyObject_New(MGLTexture, MGLTexture_type);
+    texture->bindless_state.reset();
     texture->released = false;
     texture->external = false;
 
@@ -3931,6 +3979,7 @@ static PyObject * MGLContext_depth_texture(MGLContext * self, PyObject * args) {
     gl.ActiveTexture(GL_TEXTURE0 + self->default_texture_unit);
 
     MGLTexture * texture = PyObject_New(MGLTexture, MGLTexture_type);
+    texture->bindless_state.reset();
     texture->released = false;
     texture->external = false;
 
@@ -4014,6 +4063,7 @@ static PyObject * MGLContext_external_texture(MGLContext * self, PyObject * args
     }
 
     MGLTexture * texture = PyObject_New(MGLTexture, MGLTexture_type);
+    texture->bindless_state.reset();
     texture->released = false;
     texture->external = true;
 
@@ -4422,12 +4472,8 @@ static PyObject * MGLTexture_get_handle(MGLTexture * self, PyObject * args) {
 
     const GLMethods & gl = self->context->gl;
 
-    unsigned long long handle = gl.GetTextureHandleARB(self->texture_obj);
-    if (resident) {
-        gl.MakeTextureHandleResidentARB(handle);
-    } else {
-        gl.MakeTextureHandleNonResidentARB(handle);
-    }
+    const unsigned long long handle = self->bindless_state.get_handle(gl, self->texture_obj);
+    self->bindless_state.set_residency(gl, resident);
 
     return PyLong_FromUnsignedLongLong(handle);
 }
@@ -4439,6 +4485,7 @@ static PyObject * MGLTexture_release(MGLTexture * self, PyObject * args) {
     self->released = true;
 
     const GLMethods & gl = self->context->gl;
+    self->bindless_state.release(gl);
     gl.DeleteTextures(1, (GLuint *)&self->texture_obj);
 
     Py_DECREF(self->context);
@@ -4738,6 +4785,7 @@ static PyObject * MGLContext_texture3d(MGLContext * self, PyObject * args) {
     const GLMethods & gl = self->gl;
 
     MGLTexture3D * texture = PyObject_New(MGLTexture3D, MGLTexture3D_type);
+    texture->bindless_state.reset();
     texture->released = false;
 
     texture->texture_obj = 0;
@@ -5094,12 +5142,8 @@ static PyObject * MGLTexture3D_get_handle(MGLTexture3D * self, PyObject * args) 
 
     const GLMethods & gl = self->context->gl;
 
-    unsigned long long handle = gl.GetTextureHandleARB(self->texture_obj);
-    if (resident) {
-        gl.MakeTextureHandleResidentARB(handle);
-    } else {
-        gl.MakeTextureHandleNonResidentARB(handle);
-    }
+    const unsigned long long handle = self->bindless_state.get_handle(gl, self->texture_obj);
+    self->bindless_state.set_residency(gl, resident);
 
     return PyLong_FromUnsignedLongLong(handle);
 }
@@ -5111,6 +5155,7 @@ static PyObject * MGLTexture3D_release(MGLTexture3D * self, PyObject * args) {
     self->released = true;
 
     const GLMethods & gl = self->context->gl;
+    self->bindless_state.release(gl);
     gl.DeleteTextures(1, (GLuint *)&self->texture_obj);
 
     Py_DECREF(self->context);
@@ -5365,6 +5410,7 @@ static PyObject * MGLContext_texture_array(MGLContext * self, PyObject * args) {
     gl.ActiveTexture(GL_TEXTURE0 + self->default_texture_unit);
 
     MGLTextureArray * texture = PyObject_New(MGLTextureArray, MGLTextureArray_type);
+    texture->bindless_state.reset();
     texture->released = false;
 
     texture->texture_obj = 0;
@@ -5743,12 +5789,8 @@ static PyObject * MGLTextureArray_get_handle(MGLTextureArray * self, PyObject * 
 
     const GLMethods & gl = self->context->gl;
 
-    unsigned long long handle = gl.GetTextureHandleARB(self->texture_obj);
-    if (resident) {
-        gl.MakeTextureHandleResidentARB(handle);
-    } else {
-        gl.MakeTextureHandleNonResidentARB(handle);
-    }
+    const unsigned long long handle = self->bindless_state.get_handle(gl, self->texture_obj);
+    self->bindless_state.set_residency(gl, resident);
 
     return PyLong_FromUnsignedLongLong(handle);
 }
@@ -5760,6 +5802,7 @@ static PyObject * MGLTextureArray_release(MGLTextureArray * self, PyObject * arg
     self->released = true;
 
     const GLMethods & gl = self->context->gl;
+    self->bindless_state.release(gl);
     gl.DeleteTextures(1, (GLuint *)&self->texture_obj);
 
     Py_DECREF(self->context);
@@ -6004,6 +6047,7 @@ static PyObject * MGLContext_texture_cube(MGLContext * self, PyObject * args) {
     const GLMethods & gl = self->gl;
 
     MGLTextureCube * texture = PyObject_New(MGLTextureCube, MGLTextureCube_type);
+    texture->bindless_state.reset();
     texture->released = false;
 
     texture->texture_obj = 0;
@@ -6127,6 +6171,7 @@ static PyObject * MGLContext_depth_texture_cube(MGLContext * self, PyObject * ar
     const GLMethods & gl = self->gl;
 
     MGLTextureCube * texture = PyObject_New(MGLTextureCube, MGLTextureCube_type);
+    texture->bindless_state.reset();
     texture->released = false;
 
     texture->texture_obj = 0;
@@ -6480,12 +6525,8 @@ static PyObject * MGLTextureCube_get_handle(MGLTextureCube * self, PyObject * ar
 
     const GLMethods & gl = self->context->gl;
 
-    unsigned long long handle = gl.GetTextureHandleARB(self->texture_obj);
-    if (resident) {
-        gl.MakeTextureHandleResidentARB(handle);
-    } else {
-        gl.MakeTextureHandleNonResidentARB(handle);
-    }
+    const unsigned long long handle = self->bindless_state.get_handle(gl, self->texture_obj);
+    self->bindless_state.set_residency(gl, resident);
 
     return PyLong_FromUnsignedLongLong(handle);
 }
@@ -6541,6 +6582,7 @@ static PyObject * MGLTextureCube_release(MGLTextureCube * self, PyObject * args)
     // TODO: decref
 
     const GLMethods & gl = self->context->gl;
+    self->bindless_state.release(gl);
     gl.DeleteTextures(1, (GLuint *)&self->texture_obj);
 
     Py_DECREF(self);
@@ -8209,6 +8251,20 @@ static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObjec
             // Error during conversion (e.g., overflow)
             return nullptr;
         }
+
+        // Validate handle is not 0 (invalid handle)
+        if (handle == 0) {
+            PyErr_SetString(PyExc_ValueError, "Invalid texture handle (handle is 0).");
+            return nullptr;
+        }
+
+        // Check if bindless textures are supported
+        if (!self->gl.ProgramUniformHandleui64ARB) {
+            PyErr_SetString(PyExc_RuntimeError,
+                "Bindless textures not supported on this system.");
+            return nullptr;
+        }
+
         self->gl.ProgramUniformHandleui64ARB(program_obj, location, handle);
 
     // Case 2: The argument is a list
@@ -8234,6 +8290,12 @@ static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObjec
             if (PyErr_Occurred()) {
                 PyMem_Free(handles);
                 return nullptr; // Conversion error
+            }
+            // Validate handle is not 0 (invalid handle)
+            if (handles[i] == 0) {
+                PyMem_Free(handles);
+                PyErr_Format(PyExc_ValueError, "Invalid texture handle at index %zd (handle is 0).", i);
+                return nullptr;
             }
         }
 
@@ -9272,6 +9334,7 @@ static PyMethodDef MGLContext_methods[] = {
     {(char *)"_write_uniform", (PyCFunction)MGLContext_write_uniform, METH_VARARGS},
     {(char *)"_read_uniform", (PyCFunction)MGLContext_read_uniform, METH_VARARGS},
     {(char *)"_set_uniform_handle", (PyCFunction)MGLContext_set_uniform_handle, METH_VARARGS},
+    {(char *)"_get_uniform_handle", (PyCFunction)MGLContext_get_uniform_handle, METH_VARARGS},
     {},
 };
 
