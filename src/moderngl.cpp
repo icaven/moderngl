@@ -8213,11 +8213,8 @@ static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObjec
 
     // Case 2: The argument is a list
     } else if (PyList_Check(handle_arg)) {
+        // The size of the array has been validated by the python interface
         const Py_ssize_t count = PyList_Size(handle_arg);
-        if (count == 0) {
-            // Handle empty list if necessary, maybe it's a no-op
-            Py_RETURN_NONE;
-        }
 
         // Allocate memory for the C array of handles
         auto* handles = static_cast<GLuint64*>(PyMem_Malloc(count * sizeof(GLuint64)));
