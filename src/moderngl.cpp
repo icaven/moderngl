@@ -8240,6 +8240,13 @@ static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObjec
             }
         }
 
+        if (!self->gl.ProgramUniformHandleui64vARB) {
+            PyErr_SetString(PyExc_RuntimeError,
+                "Bindless texture arrays not supported on this system.");
+            PyMem_Free(handles);
+            return nullptr;
+        }
+
         self->gl.ProgramUniformHandleui64vARB(program_obj, location, static_cast<GLsizei>(count), handles);
 
         // Free the memory after use
