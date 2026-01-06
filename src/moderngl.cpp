@@ -8196,6 +8196,12 @@ static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObjec
         return nullptr;
     }
 
+    // Validate uniform location
+    if (location < 0) {
+        PyErr_SetString(PyExc_ValueError, "Invalid uniform location.");
+        return nullptr;
+    }
+
     // Case 1: The argument is a single integer
     if (PyLong_Check(handle_arg)) {
         const unsigned long long handle = PyLong_AsUnsignedLongLong(handle_arg);
