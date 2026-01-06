@@ -328,3 +328,42 @@ def test_context_gc(ctx_new):
 
 # #     ctx1.release()
 # #     ctx2.release()
+
+
+def test_supports_bindless_property(ctx):
+    """Tests that supports_bindless property exists and returns a boolean."""
+    assert hasattr(ctx, 'supports_bindless')
+    assert isinstance(ctx.supports_bindless, bool)
+
+
+def test_supports_bindless_gl44_core(ctx_new):
+    """Tests bindless support detection for OpenGL 4.4+ core."""
+    ctx = ctx_new
+    # If version is 4.4 or higher, should return True
+    if ctx.version_code >= 440:
+        assert ctx.supports_bindless is True
+
+
+def test_supports_bindless_extensions(ctx):
+    """Tests bindless support detection via extensions."""
+    # Check if any bindless extension is present
+    has_arb_bindless = "GL_ARB_bindless_texture" in ctx.extensions
+    has_nv_bindless = "GL_NV_bindless_texture" in ctx.extensions
+    is_gl44_or_higher = ctx.version_code >= 440
+
+    expected = is_gl44_or_higher or has_arb_bindless or has_nv_bindless
+    assert ctx.supports_bindless == expected
+
+
+def test_bindless_not_supported_gracefully(ctx):
+    """Tests that code handles lack of bindless support gracefully."""
+    # This test always passes, but documents expected behavior
+    # When bindless is not supported, get_handle() should still work
+
+    if not ctx.supports_bindless:
+        texture = ctx.texture((4, 4), 4)
+        # get_handle should work even if bindless isn't supported
+        # (it might return 0 or a dummy value)
+        handle = texture.get_handle()
+        assert isinstance(handle, int)
+        texture.release()
