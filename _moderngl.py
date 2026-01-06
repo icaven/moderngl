@@ -85,7 +85,11 @@ class Uniform:
     @handle.setter
     def handle(self, value):
         if isinstance(value, list):
-            value = value[:self.array_length]
+            if len(value) != self.array_length:
+                raise ValueError(
+                    f"Handle list has {len(value)} elements but uniform array "
+                    f"requires exactly {self.array_length} elements."
+                )
         self.ctx._set_uniform_handle(self.program_obj, self.location, value)
 
     def read(self):
