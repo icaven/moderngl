@@ -715,7 +715,7 @@ struct GLMethods {
     // PFNGLUNIFORM3UI64VARBPROC Uniform3ui64vARB;
     // PFNGLUNIFORM4UI64VARBPROC Uniform4ui64vARB;
     // PFNGLGETUNIFORMI64VARBPROC GetUniformi64vARB;
-    // PFNGLGETUNIFORMUI64VARBPROC GetUniformui64vARB;
+    PFNGLGETUNIFORMUI64VARBPROC GetUniformui64vARB;
     // PFNGLGETNUNIFORMI64VARBPROC GetnUniformi64vARB;
     // PFNGLGETNUNIFORMUI64VARBPROC GetnUniformui64vARB;
     // PFNGLPROGRAMUNIFORM1I64ARBPROC ProgramUniform1i64ARB;
@@ -2014,7 +2014,7 @@ GLMethods load_gl_methods(PyObject * loader) {
     // load(Uniform3ui64vARB);
     // load(Uniform4ui64vARB);
     // load(GetUniformi64vARB);
-    // load(GetUniformui64vARB);
+    load(GetUniformui64vARB);
     // load(GetnUniformi64vARB);
     // load(GetnUniformui64vARB);
     // load(ProgramUniform1i64ARB);

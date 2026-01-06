@@ -8320,6 +8320,62 @@ static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObjec
     Py_RETURN_NONE;
 }
 
+static PyObject * MGLContext_get_uniform_handle(const MGLContext * self, PyObject * args) {
+    unsigned int program_obj;
+    int location;
+    int array_length;
+
+    if (!PyArg_ParseTuple(args, "IIi", &program_obj, &location, &array_length)) {
+        return nullptr;
+    }
+
+    // Validate array_length
+    if (array_length < 1) {
+        PyErr_SetString(PyExc_ValueError, "array_length must be at least 1.");
+        return nullptr;
+    }
+
+    // Check if function pointer is available
+    if (!self->gl.GetUniformui64vARB) {
+        PyErr_SetString(PyExc_RuntimeError, "Bindless textures not supported on this system.");
+        return nullptr;
+    }
+
+    // Allocate array for handles
+    auto* handles = static_cast<GLuint64*>(PyMem_Malloc(array_length * sizeof(GLuint64)));
+    if (!handles) {
+        return PyErr_NoMemory();
+    }
+
+    // Read handles from OpenGL in a single call
+    // OpenGL reads all array elements when given a properly sized buffer
+    self->gl.GetUniformui64vARB(program_obj, location, handles);
+
+    // Return single int or list based on array_length
+    if (array_length == 1) {
+        PyObject* result = PyLong_FromUnsignedLongLong(handles[0]);
+        PyMem_Free(handles);
+        return result;
+    } else {
+        PyObject* result = PyList_New(array_length);
+        if (!result) {
+            PyMem_Free(handles);
+            return nullptr;
+        }
+        for (int i = 0; i < array_length; i++) {
+            PyObject* handle = PyLong_FromUnsignedLongLong(handles[i]);
+            if (!handle) {
+                Py_DECREF(result);
+                PyMem_Free(handles);
+                return nullptr;
+            }
+            PyList_SetItem(result, i, handle);
+        }
+        PyMem_Free(handles);
+        return result;
+    }
+}
+
 static PyObject * MGLContext_get_line_width(MGLContext * self, void * closure) {
     float line_width = 0.0f;
 

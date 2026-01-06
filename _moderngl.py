@@ -80,7 +80,7 @@ class Uniform:
 
     @property
     def handle(self):
-        raise NotImplementedError
+        return self.ctx._get_uniform_handle(self.program_obj, self.location, self.array_length)
 
     @handle.setter
     def handle(self, value):
