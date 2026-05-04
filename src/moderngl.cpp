@@ -3227,16 +3227,23 @@ template <class T>
 static int set_repeat_value(T* self, const SetFunctionPtr<T> set_function, const PyObject* value,
                             const char* key_string, void* closure)
 {
-    PyObject* dict = PyDict_New();
-    PyObject* key = PyUnicode_FromString(key_string);
-    PyObject* str_value = (value == Py_True)
-                              ? PyUnicode_FromString("repeat")
-                              : (value == Py_False)
-                              ? PyUnicode_FromString("clamp_to_edge")
-                              : nullptr;
-    if (!str_value)
-    {
+    const char * mode_string;
+    if (value == Py_True) {
+        mode_string = "repeat";
+    } else if (value == Py_False) {
+        mode_string = "clamp_to_edge";
+    } else {
         MGLError_Set("invalid value for texture_%s", key_string);
+        return -1;
+    }
+
+    PyObject * dict = PyDict_New();
+    PyObject * key = PyUnicode_FromString(key_string);
+    PyObject * str_value = PyUnicode_FromString(mode_string);
+    if (!dict || !key || !str_value) {
+        Py_XDECREF(dict);
+        Py_XDECREF(key);
+        Py_XDECREF(str_value);
         return -1;
     }
     PyDict_SetItem(dict, key, str_value);
