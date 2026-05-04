@@ -3219,40 +3219,47 @@ static int MGLSampler_set_wrap(MGLSampler * self, PyObject * value, void * closu
     return 0;
 }
 
-template <class T>
-using SetFunctionPtr = int(*)(T*, PyObject*, void*);
-
-// Helper function to set the repeat texture wrap value
-template <class T>
-static int set_repeat_value(T* self, const SetFunctionPtr<T> set_function, const PyObject* value,
-                            const char* key_string, void* closure)
-{
-    const char * mode_string;
+// Map True/False to a wrap-mode GL constant. Returns 0 on success and writes
+// `*wrap_constant`; returns -1 with a Python error set otherwise.
+static int repeat_value_to_wrap_constant(PyObject * value, const char * axis_name,
+                                         int * wrap_constant) {
     if (value == Py_True) {
-        mode_string = "repeat";
+        *wrap_constant = GL_REPEAT;
     } else if (value == Py_False) {
-        mode_string = "clamp_to_edge";
+        *wrap_constant = GL_CLAMP_TO_EDGE;
     } else {
-        MGLError_Set("invalid value for texture_%s", key_string);
+        MGLError_Set("invalid value for texture_%s", axis_name);
         return -1;
     }
+    return 0;
+}
 
-    PyObject * dict = PyDict_New();
-    PyObject * key = PyUnicode_FromString(key_string);
-    PyObject * str_value = PyUnicode_FromString(mode_string);
-    if (!dict || !key || !str_value) {
-        Py_XDECREF(dict);
-        Py_XDECREF(key);
-        Py_XDECREF(str_value);
+// Apply a wrap-mode constant to a Sampler axis.
+static int set_sampler_wrap_axis(const GLMethods & gl, int sampler_obj, GLenum pname,
+                                 PyObject * value, const char * axis_name, int * cache_field) {
+    int wrap_constant;
+    if (repeat_value_to_wrap_constant(value, axis_name, &wrap_constant)) {
         return -1;
     }
-    PyDict_SetItem(dict, key, str_value);
+    gl.SamplerParameteri(sampler_obj, pname, wrap_constant);
+    *cache_field = wrap_constant;
+    return 0;
+}
 
-    const int return_value = set_function(self, dict, closure);
-    Py_DECREF(str_value);
-    Py_DECREF(key);
-    Py_DECREF(dict);
-    return return_value;
+// Apply a wrap-mode constant to a Texture axis (binds the texture first, since
+// glTexParameteri operates on the currently bound texture).
+static int set_texture_wrap_axis(const GLMethods & gl, int active_unit, int target,
+                                 int texture_obj, GLenum pname,
+                                 PyObject * value, const char * axis_name, int * cache_field) {
+    int wrap_constant;
+    if (repeat_value_to_wrap_constant(value, axis_name, &wrap_constant)) {
+        return -1;
+    }
+    gl.ActiveTexture(GL_TEXTURE0 + active_unit);
+    gl.BindTexture(target, texture_obj);
+    gl.TexParameteri(target, pname, wrap_constant);
+    *cache_field = wrap_constant;
+    return 0;
 }
 
 static PyObject * MGLSampler_get_repeat_x(MGLSampler * self, void * closure) {
@@ -3260,7 +3267,8 @@ static PyObject * MGLSampler_get_repeat_x(MGLSampler * self, void * closure) {
 }
 
 static int MGLSampler_set_repeat_x(MGLSampler * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLSampler_set_wrap, value, "x", closure);
+    return set_sampler_wrap_axis(self->context->gl, self->sampler_obj, GL_TEXTURE_WRAP_S,
+                                 value, "x", &self->wrap_s);
 }
 
 static PyObject * MGLSampler_get_repeat_y(MGLSampler * self, void * closure) {
@@ -3268,7 +3276,8 @@ static PyObject * MGLSampler_get_repeat_y(MGLSampler * self, void * closure) {
 }
 
 static int MGLSampler_set_repeat_y(MGLSampler * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLSampler_set_wrap, value, "y", closure);
+    return set_sampler_wrap_axis(self->context->gl, self->sampler_obj, GL_TEXTURE_WRAP_T,
+                                 value, "y", &self->wrap_t);
 }
 
 static PyObject * MGLSampler_get_repeat_z(MGLSampler * self, void * closure) {
@@ -3276,7 +3285,8 @@ static PyObject * MGLSampler_get_repeat_z(MGLSampler * self, void * closure) {
 }
 
 static int MGLSampler_set_repeat_z(MGLSampler * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLSampler_set_wrap, value, "z", closure);
+    return set_sampler_wrap_axis(self->context->gl, self->sampler_obj, GL_TEXTURE_WRAP_R,
+                                 value, "z", &self->wrap_r);
 }
 
 
@@ -4642,7 +4652,10 @@ static PyObject * MGLTexture_get_repeat_x(MGLTexture * self, void * closure) {
 }
 
 static int MGLTexture_set_repeat_x(MGLTexture * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLTexture_set_wrap, value, "x", closure);
+    const int target = self->samples ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+    return set_texture_wrap_axis(self->context->gl, self->context->default_texture_unit,
+                                 target, self->texture_obj, GL_TEXTURE_WRAP_S,
+                                 value, "x", &self->wrap_s);
 }
 
 static PyObject * MGLTexture_get_repeat_y(MGLTexture * self, void * closure) {
@@ -4650,7 +4663,10 @@ static PyObject * MGLTexture_get_repeat_y(MGLTexture * self, void * closure) {
 }
 
 static int MGLTexture_set_repeat_y(MGLTexture * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLTexture_set_wrap, value, "y", closure);
+    const int target = self->samples ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+    return set_texture_wrap_axis(self->context->gl, self->context->default_texture_unit,
+                                 target, self->texture_obj, GL_TEXTURE_WRAP_T,
+                                 value, "y", &self->wrap_t);
 }
 
 static PyObject * MGLTexture_get_filter(MGLTexture * self, void * closure) {
@@ -5328,7 +5344,9 @@ static PyObject * MGLTexture3D_get_repeat_x(MGLTexture3D * self, void * closure)
 }
 
 static int MGLTexture3D_set_repeat_x(MGLTexture3D * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLTexture3D_set_wrap, value, "x", closure);
+    return set_texture_wrap_axis(self->context->gl, self->context->default_texture_unit,
+                                 GL_TEXTURE_3D, self->texture_obj, GL_TEXTURE_WRAP_S,
+                                 value, "x", &self->wrap_s);
 }
 
 static PyObject * MGLTexture3D_get_repeat_y(MGLTexture3D * self, void * closure) {
@@ -5336,7 +5354,9 @@ static PyObject * MGLTexture3D_get_repeat_y(MGLTexture3D * self, void * closure)
 }
 
 static int MGLTexture3D_set_repeat_y(MGLTexture3D * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLTexture3D_set_wrap, value, "y", closure);
+    return set_texture_wrap_axis(self->context->gl, self->context->default_texture_unit,
+                                 GL_TEXTURE_3D, self->texture_obj, GL_TEXTURE_WRAP_T,
+                                 value, "y", &self->wrap_t);
 }
 
 static PyObject * MGLTexture3D_get_repeat_z(MGLTexture3D * self, void * closure) {
@@ -5344,7 +5364,9 @@ static PyObject * MGLTexture3D_get_repeat_z(MGLTexture3D * self, void * closure)
 }
 
 static int MGLTexture3D_set_repeat_z(MGLTexture3D * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLTexture3D_set_wrap, value, "z", closure);
+    return set_texture_wrap_axis(self->context->gl, self->context->default_texture_unit,
+                                 GL_TEXTURE_3D, self->texture_obj, GL_TEXTURE_WRAP_R,
+                                 value, "z", &self->wrap_r);
 }
 
 static PyObject * MGLTexture3D_get_filter(MGLTexture3D * self, void * closure) {
@@ -5974,7 +5996,9 @@ static PyObject * MGLTextureArray_get_repeat_x(MGLTextureArray * self, void * cl
 }
 
 static int MGLTextureArray_set_repeat_x(MGLTextureArray * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLTextureArray_set_wrap, value, "x", closure);
+    return set_texture_wrap_axis(self->context->gl, self->context->default_texture_unit,
+                                 GL_TEXTURE_2D_ARRAY, self->texture_obj, GL_TEXTURE_WRAP_S,
+                                 value, "x", &self->wrap_s);
 }
 
 static PyObject * MGLTextureArray_get_repeat_y(MGLTextureArray * self, void * closure) {
@@ -5982,7 +6006,9 @@ static PyObject * MGLTextureArray_get_repeat_y(MGLTextureArray * self, void * cl
 }
 
 static int MGLTextureArray_set_repeat_y(MGLTextureArray * self, PyObject * value, void * closure) {
-    return set_repeat_value(self, MGLTextureArray_set_wrap, value, "y", closure);
+    return set_texture_wrap_axis(self->context->gl, self->context->default_texture_unit,
+                                 GL_TEXTURE_2D_ARRAY, self->texture_obj, GL_TEXTURE_WRAP_T,
+                                 value, "y", &self->wrap_t);
 }
 
 static PyObject * MGLTextureArray_get_filter(MGLTextureArray * self, void * closure) {
