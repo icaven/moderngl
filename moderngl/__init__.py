@@ -618,19 +618,25 @@ _WRAP_SYNONYMS = {'x': 's', 'y': 't', 'z': 'r'}
 class WrapProxy:
     def __init__(self, mglo):
         self._mglo = mglo
+
     def __getitem__(self, k):
         return self._mglo.wrap.get(k)
+
     def __setitem__(self, k, v):
         canonical = self._mglo.wrap.keys()
         valid = set(canonical) | {_WRAP_SYNONYMS[c] for c in canonical}
         if k not in valid:
             raise KeyError(k)
         self._mglo.wrap = {k: v}
+
     def __iter__(self):
         return iter(self._mglo.wrap.keys())
+
     def __len__(self):
         return len(self._mglo.wrap)
-    def keys(self): return list(iter(self._mglo.wrap.keys()))
+
+    def keys(self):
+        return list(self._mglo.wrap.keys())
 
 class Sampler:
     def __init__(self):

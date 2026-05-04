@@ -49,32 +49,15 @@ def test_texture_properties(ctx):
     assert dict(tex.wrap) == {"x": "mirrored_repeat", "y": "clamp_to_edge"}
     tex.wrap['x'] = 'repeat'  # Set just one of the values
     assert dict(tex.wrap) == {"x": "repeat", "y": "clamp_to_edge"}
-    try:
-        # if "s" and "x" (or "t" and "y", or "r" and "z") are both present, they must be the same
+    # if "s" and "x" (or "t" and "y", or "r" and "z") are both present, they must be the same
+    with pytest.raises(moderngl.Error):
         tex.wrap = {"s": "mirrored_repeat", "x": "clamp_to_edge"}
-        exception_caught = False
-    except moderngl.Error:
-        exception_caught = True
-    assert exception_caught
-    try:
-        # if "s" and "x" (or "t" and "y", or "r" and "z") are both present, they can be the same
-        tex.wrap = {"y": "mirrored_repeat", "t": "mirrored_repeat"}
-        duplicate_allowed = True
-    except moderngl.Error as e:
-        duplicate_allowed = False
-    assert duplicate_allowed
-    try:
+    # if "s" and "x" (or "t" and "y", or "r" and "z") are both present, they can be the same
+    tex.wrap = {"y": "mirrored_repeat", "t": "mirrored_repeat"}
+    with pytest.raises(moderngl.Error):
         tex.wrap['x'] = 'invalid'
-        invalid_value_exception_caught = False
-    except moderngl.Error:
-        invalid_value_exception_caught = True
-    assert invalid_value_exception_caught
-    try:
+    with pytest.raises(KeyError):
         tex.wrap['invalid'] = 'repeat'
-        unknown_key_raised = False
-    except KeyError:
-        unknown_key_raised = True
-    assert unknown_key_raised
     assert tex.dtype == 'f1'
     assert tex.anisotropy == 0.0
 

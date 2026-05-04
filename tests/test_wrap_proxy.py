@@ -5,6 +5,8 @@ Sampler, Texture, Texture3D, and TextureArray.
 import gc
 import sys
 
+import pytest
+
 import moderngl
 
 
@@ -29,20 +31,12 @@ def test_wrap_proxy_setitem_unknown_key_raises(ctx):
     stays lenient by design (see test_texture.py for the cross-type
     extras case)."""
     tex2d = ctx.texture((4, 4), 4)
-    try:
+    with pytest.raises(KeyError):
         tex2d.wrap['z'] = 'repeat'  # Texture has no z axis
-    except KeyError:
-        pass
-    else:
-        assert False, "expected KeyError on subscript with unknown key"
 
     sampler = ctx.sampler()
-    try:
+    with pytest.raises(KeyError):
         sampler.wrap['typo'] = 'repeat'
-    except KeyError:
-        pass
-    else:
-        assert False, "expected KeyError on subscript with unknown key"
 
     # Synonyms are valid and must not raise.
     sampler.wrap['s'] = 'repeat'

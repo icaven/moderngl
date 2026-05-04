@@ -3082,8 +3082,8 @@ static const char * wrap_constant_to_string(const int wrap_constant) {
         case GL_CLAMP_TO_BORDER: return "clamp_to_border";
         case GL_MIRRORED_REPEAT: return "mirrored_repeat";
         case GL_MIRROR_CLAMP_TO_EDGE: return "mirror_clamp_to_edge";
-        default: return "unknown";
     }
+    return nullptr;
 }
 
 static int wrap_string_to_constant(const char * wrap_string) {
@@ -3096,16 +3096,18 @@ static int wrap_string_to_constant(const char * wrap_string) {
 }
 
 // Helper function to get a texture wrapping mode
-static int GetWrapMode(PyObject * wrap_dict, const char* key, const int mode)
+static int get_wrap_mode(PyObject * wrap_dict, const char * key, const int mode)
 {
-    PyObject * wrap_mode_str = PyUnicode_FromString(wrap_constant_to_string(mode));
-
-    if (!wrap_mode_str ) {
+    const char * mode_string = wrap_constant_to_string(mode);
+    if (!mode_string) {
+        MGLError_Set("unrecognized wrap constant 0x%x for axis '%s'", mode, key);
         return -1;
     }
-
+    PyObject * wrap_mode_str = PyUnicode_FromString(mode_string);
+    if (!wrap_mode_str) {
+        return -1;
+    }
     PyDict_SetItemString(wrap_dict, key, wrap_mode_str);
-
     Py_DECREF(wrap_mode_str);
     return 0;
 }
@@ -3125,7 +3127,7 @@ struct WrapKey {
 };
 
 // Helper function to set a texture wrapping mode
-static int SetWrapMode(const GLMethodPtr gl_method, const int field, PyObject* update_dict,
+static int set_wrap_mode(const GLMethodPtr gl_method, const int field, PyObject* update_dict,
                        const char* key, const char* synonym_key, const GLenum pname, int* wrap_mode)
 {
     PyObject* wrap_obj = PyDict_GetItemString(update_dict, key);
@@ -3153,13 +3155,11 @@ static int SetWrapMode(const GLMethodPtr gl_method, const int field, PyObject* u
     }
 
     // Either the key or its synonym have been supplied
-    const char* & key_used = key;
-    if (!wrap_obj)
-    {
+    const char * key_used = wrap_obj ? key : synonym_key;
+    if (!wrap_obj) {
         wrap_obj = synonym_wrap_obj;
-        key_used = synonym_key;
     }
-    const char* wrap_str = PyUnicode_AsUTF8(wrap_obj);
+    const char * wrap_str = PyUnicode_AsUTF8(wrap_obj);
     const int wrap_constant = wrap_string_to_constant(wrap_str);
     if (!wrap_constant)
     {
@@ -3185,7 +3185,7 @@ static PyObject * MGLSampler_get_wrap(const MGLSampler * self, void * closure) {
         {"z", self->wrap_r},
     };
     for (const WrapField & wf : wrap_fields) {
-        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
+        if (get_wrap_mode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -3209,7 +3209,7 @@ static int MGLSampler_set_wrap(MGLSampler * self, PyObject * value, void * closu
         {"z", "r", GL_TEXTURE_WRAP_R, &self->wrap_r},
     };
     for (const WrapKey & k : known_keys) {
-        if (const int return_value = SetWrapMode(gl.SamplerParameteri, self->sampler_obj,
+        if (const int return_value = set_wrap_mode(gl.SamplerParameteri, self->sampler_obj,
                                                   value, k.key, k.synonym_key, k.pname,
                                                   k.field_ptr)) {
             return return_value;
@@ -4611,7 +4611,7 @@ static PyObject * MGLTexture_get_wrap(const MGLTexture * self, void * closure) {
         {"y", self->wrap_t},
     };
     for (const WrapField & wf : wrap_fields) {
-        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
+        if (get_wrap_mode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -4637,7 +4637,7 @@ static int MGLTexture_set_wrap(MGLTexture * self, PyObject * value, void * closu
         {"y", "t", GL_TEXTURE_WRAP_T, &self->wrap_t},
     };
     for (const WrapKey & k : known_keys) {
-        if (const int return_value = SetWrapMode(gl.TexParameteri, texture_target, value,
+        if (const int return_value = set_wrap_mode(gl.TexParameteri, texture_target, value,
                                                   k.key, k.synonym_key, k.pname,
                                                   k.field_ptr)) {
             return return_value;
@@ -5290,7 +5290,7 @@ static PyObject * MGLTexture3D_release(MGLTexture3D * self, PyObject * args) {
 }
 
 
-static PyObject *MGLTexture3D_get_wrap(const MGLTexture3D * self, void * closure) {
+static PyObject * MGLTexture3D_get_wrap(const MGLTexture3D * self, void * closure) {
     PyObject * wrap_dict = PyDict_New();
     if (!wrap_dict) {
         return nullptr;
@@ -5303,7 +5303,7 @@ static PyObject *MGLTexture3D_get_wrap(const MGLTexture3D * self, void * closure
         {"z", self->wrap_r},
     };
     for (const WrapField & wf : wrap_fields) {
-        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
+        if (get_wrap_mode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -5329,7 +5329,7 @@ static int MGLTexture3D_set_wrap(MGLTexture3D * self, PyObject * value, void * c
         {"z", "r", GL_TEXTURE_WRAP_R, &self->wrap_r},
     };
     for (const WrapKey & k : known_keys) {
-        if (const int return_value = SetWrapMode(gl.TexParameteri, GL_TEXTURE_3D, value,
+        if (const int return_value = set_wrap_mode(gl.TexParameteri, GL_TEXTURE_3D, value,
                                                   k.key, k.synonym_key, k.pname,
                                                   k.field_ptr)) {
             return return_value;
@@ -5955,7 +5955,7 @@ static PyObject * MGLTextureArray_get_wrap(const MGLTextureArray * self, void * 
         {"y", self->wrap_t},
     };
     for (const WrapField & wf : wrap_fields) {
-        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
+        if (get_wrap_mode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -5980,7 +5980,7 @@ static int MGLTextureArray_set_wrap(MGLTextureArray * self, PyObject * value, vo
         {"y", "t", GL_TEXTURE_WRAP_T, &self->wrap_t},
     };
     for (const WrapKey & k : known_keys) {
-        if (const int return_value = SetWrapMode(gl.TexParameteri, GL_TEXTURE_2D_ARRAY, value,
+        if (const int return_value = set_wrap_mode(gl.TexParameteri, GL_TEXTURE_2D_ARRAY, value,
                                                   k.key, k.synonym_key, k.pname,
                                                   k.field_ptr))
         {
