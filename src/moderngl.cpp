@@ -3112,6 +3112,18 @@ static int GetWrapMode(PyObject * wrap_dict, const char* key, const int mode)
 
 using GLMethodPtr = void(*)(GLuint, GLenum, GLint);
 
+struct WrapField {
+    const char * key;
+    int field_value;
+};
+
+struct WrapKey {
+    const char * key;
+    const char * synonym_key;
+    GLenum pname;
+    int * field_ptr;
+};
+
 // Helper function to set a texture wrapping mode
 static int SetWrapMode(const GLMethodPtr gl_method, const int field, PyObject* update_dict,
                        const char* key, const char* synonym_key, const GLenum pname, int* wrap_mode)
@@ -3123,15 +3135,13 @@ static int SetWrapMode(const GLMethodPtr gl_method, const int field, PyObject* u
         return 0; // Okay for neither to exist
     }
     // If either key is given, then the value must be a string
-    for (const auto& [k, v] : {
-             std::make_pair(key, wrap_obj), std::make_pair(synonym_key, synonym_wrap_obj)
-         })
-    {
-        if (v && !PyUnicode_Check(v))
-        {
-            MGLError_Set("Value for key %s must be a string", k);
-            return -1;
-        }
+    if (wrap_obj && !PyUnicode_Check(wrap_obj)) {
+        MGLError_Set("Value for key %s must be a string", key);
+        return -1;
+    }
+    if (synonym_wrap_obj && !PyUnicode_Check(synonym_wrap_obj)) {
+        MGLError_Set("Value for key %s must be a string", synonym_key);
+        return -1;
     }
     // If both exist, the values must be the same
     if (wrap_obj && synonym_wrap_obj && PyUnicode_Compare(wrap_obj, synonym_wrap_obj) != 0)
@@ -3169,15 +3179,13 @@ static PyObject * MGLSampler_get_wrap(const MGLSampler * self, void * closure) {
     }
 
     // Use the "x", "y", "z" keys to be consistent with other usage in moderngl
-    std::vector<std::tuple<const char*,int>> wrap_fields = {
+    const WrapField wrap_fields[] = {
         {"x", self->wrap_s},
         {"y", self->wrap_t},
-        {"z", self->wrap_r}
+        {"z", self->wrap_r},
     };
-    for (const auto [key, field_value] : wrap_fields)
-    {
-        if (GetWrapMode(wrap_dict, key, field_value))
-        {
+    for (const WrapField & wf : wrap_fields) {
+        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -3195,17 +3203,15 @@ static int MGLSampler_set_wrap(MGLSampler * self, PyObject * value, void * closu
         return -1;
     }
 
-    std::vector<std::tuple<const char*, const char*, GLenum, int*>> known_keys = {
+    const WrapKey known_keys[] = {
         {"x", "s", GL_TEXTURE_WRAP_S, &self->wrap_s},
         {"y", "t", GL_TEXTURE_WRAP_T, &self->wrap_t},
-        {"z", "r", GL_TEXTURE_WRAP_R, &self->wrap_r}
+        {"z", "r", GL_TEXTURE_WRAP_R, &self->wrap_r},
     };
-    for (const auto [key, synonym_key, pname, field_ptr] : known_keys)
-    {
-        // Process key if present
-        if (const auto return_value = SetWrapMode(gl.SamplerParameteri, self->sampler_obj,
-                                                       value, key, synonym_key, pname, field_ptr))
-        {
+    for (const WrapKey & k : known_keys) {
+        if (const int return_value = SetWrapMode(gl.SamplerParameteri, self->sampler_obj,
+                                                  value, k.key, k.synonym_key, k.pname,
+                                                  k.field_ptr)) {
             return return_value;
         }
     }
@@ -4583,14 +4589,12 @@ static PyObject * MGLTexture_get_wrap(const MGLTexture * self, void * closure) {
     }
 
     // Use the "x", "y" keys to be consistent with other usage in moderngl
-    std::vector<std::tuple<const char*,int>> wrap_fields = {
+    const WrapField wrap_fields[] = {
         {"x", self->wrap_s},
         {"y", self->wrap_t},
     };
-    for (const auto [key, field_value] : wrap_fields)
-    {
-        if (GetWrapMode(wrap_dict, key, field_value))
-        {
+    for (const WrapField & wf : wrap_fields) {
+        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -4608,16 +4612,17 @@ static int MGLTexture_set_wrap(MGLTexture * self, PyObject * value, void * closu
     }
     const int texture_target = self->samples ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
 
-    std::vector<std::tuple<const char*, const char*, GLint, int*>> known_keys = {
+    gl.ActiveTexture(GL_TEXTURE0 + self->context->default_texture_unit);
+    gl.BindTexture(texture_target, self->texture_obj);
+
+    const WrapKey known_keys[] = {
         {"x", "s", GL_TEXTURE_WRAP_S, &self->wrap_s},
         {"y", "t", GL_TEXTURE_WRAP_T, &self->wrap_t},
     };
-    for (const auto [key, synonym_key, pname, field_ptr] : known_keys)
-    {
-        // Process key if present
-        if (const auto return_value = SetWrapMode(gl.TexParameteri, texture_target, value, key,
-                                                       synonym_key, pname, field_ptr))
-        {
+    for (const WrapKey & k : known_keys) {
+        if (const int return_value = SetWrapMode(gl.TexParameteri, texture_target, value,
+                                                  k.key, k.synonym_key, k.pname,
+                                                  k.field_ptr)) {
             return return_value;
         }
     }
@@ -5269,15 +5274,13 @@ static PyObject *MGLTexture3D_get_wrap(const MGLTexture3D * self, void * closure
     }
 
     // Use the "x", "y", "z" keys to be consistent with other usage in moderngl
-    std::vector<std::tuple<const char*,int>> wrap_fields = {
+    const WrapField wrap_fields[] = {
         {"x", self->wrap_s},
         {"y", self->wrap_t},
-        {"z", self->wrap_r}
+        {"z", self->wrap_r},
     };
-    for (const auto [key, field_value] : wrap_fields)
-    {
-        if (GetWrapMode(wrap_dict, key, field_value))
-        {
+    for (const WrapField & wf : wrap_fields) {
+        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -5294,17 +5297,18 @@ static int MGLTexture3D_set_wrap(MGLTexture3D * self, PyObject * value, void * c
         return -1;
     }
 
-    std::vector<std::tuple<const char*, const char*, GLenum, int*>> known_keys = {
+    gl.ActiveTexture(GL_TEXTURE0 + self->context->default_texture_unit);
+    gl.BindTexture(GL_TEXTURE_3D, self->texture_obj);
+
+    const WrapKey known_keys[] = {
         {"x", "s", GL_TEXTURE_WRAP_S, &self->wrap_s},
         {"y", "t", GL_TEXTURE_WRAP_T, &self->wrap_t},
         {"z", "r", GL_TEXTURE_WRAP_R, &self->wrap_r},
     };
-    for (const auto [key, synonym_key, pname, field_ptr] : known_keys)
-    {
-        // Process key if present
-        if (const auto return_value = SetWrapMode(gl.TexParameteri, GL_TEXTURE_3D, value, key,
-                                                       synonym_key, pname, field_ptr))
-        {
+    for (const WrapKey & k : known_keys) {
+        if (const int return_value = SetWrapMode(gl.TexParameteri, GL_TEXTURE_3D, value,
+                                                  k.key, k.synonym_key, k.pname,
+                                                  k.field_ptr)) {
             return return_value;
         }
     }
@@ -5917,14 +5921,12 @@ static PyObject * MGLTextureArray_get_wrap(const MGLTextureArray * self, void * 
     }
 
     // Use the "x", "y" keys to be consistent with other usage in moderngl
-    std::vector<std::tuple<const char*,int>> wrap_fields = {
+    const WrapField wrap_fields[] = {
         {"x", self->wrap_s},
         {"y", self->wrap_t},
     };
-    for (const auto [key, field_value] : wrap_fields)
-    {
-        if (GetWrapMode(wrap_dict, key, field_value))
-        {
+    for (const WrapField & wf : wrap_fields) {
+        if (GetWrapMode(wrap_dict, wf.key, wf.field_value)) {
             Py_DECREF(wrap_dict);
             return nullptr;
         }
@@ -5941,15 +5943,17 @@ static int MGLTextureArray_set_wrap(MGLTextureArray * self, PyObject * value, vo
         return -1;
     }
 
-    std::vector<std::tuple<const char*, const char*, GLint, int*>> known_keys = {
+    gl.ActiveTexture(GL_TEXTURE0 + self->context->default_texture_unit);
+    gl.BindTexture(GL_TEXTURE_2D_ARRAY, self->texture_obj);
+
+    const WrapKey known_keys[] = {
         {"x", "s", GL_TEXTURE_WRAP_S, &self->wrap_s},
         {"y", "t", GL_TEXTURE_WRAP_T, &self->wrap_t},
     };
-    for (const auto [key, synonym_key, pname, field_ptr] : known_keys)
-    {
-        // Process key if present
-        if (const auto return_value = SetWrapMode(gl.TexParameteri, GL_TEXTURE_2D_ARRAY, value,
-                                                   key, synonym_key, pname, field_ptr))
+    for (const WrapKey & k : known_keys) {
+        if (const int return_value = SetWrapMode(gl.TexParameteri, GL_TEXTURE_2D_ARRAY, value,
+                                                  k.key, k.synonym_key, k.pname,
+                                                  k.field_ptr))
         {
             return return_value;
         }
