@@ -8228,7 +8228,7 @@ static PyObject * MGLContext_write_uniform(MGLContext * self, PyObject * args) {
     Py_RETURN_NONE;
 }
 
-static PyObject * MGLContext_set_uniform_handle(const MGLContext * self, PyObject *args) {
+static PyObject * MGLContext_set_uniform_handle(MGLContext * self, PyObject *args) {
     unsigned int program_obj;
     int location;
     PyObject *handle_arg; // Generic object for the third argument
