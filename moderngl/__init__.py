@@ -620,8 +620,6 @@ class WrapProxy:
         return self._mglo.wrap.get(k)
     def __setitem__(self, k, v):
         self._mglo.wrap = {k: v}
-    def __delitem__(self, k):
-        pass
     def __iter__(self):
         return iter(self._mglo.wrap.keys())
     def __len__(self):
