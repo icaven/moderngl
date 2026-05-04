@@ -83,7 +83,6 @@ struct BindlessHandleState {
     bool obtained;
     bool resident;
 
-    BindlessHandleState() : handle(0), obtained(false), resident(false) {}
 
     // Get or create the handle
     unsigned long long get_handle(const GLMethods & gl, const int texture_obj) {
