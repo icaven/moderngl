@@ -612,6 +612,8 @@ class Renderbuffer:
             self.mglo.release()
             self.mglo = InvalidObject()
 
+_WRAP_SYNONYMS = {'x': 's', 'y': 't', 'z': 'r'}
+
 # A proxy object returned for the wrap property for Sampler, Texture, Texture3D and TextureArray
 class WrapProxy:
     def __init__(self, mglo):
@@ -619,6 +621,10 @@ class WrapProxy:
     def __getitem__(self, k):
         return self._mglo.wrap.get(k)
     def __setitem__(self, k, v):
+        canonical = self._mglo.wrap.keys()
+        valid = set(canonical) | {_WRAP_SYNONYMS[c] for c in canonical}
+        if k not in valid:
+            raise KeyError(k)
         self._mglo.wrap = {k: v}
     def __iter__(self):
         return iter(self._mglo.wrap.keys())

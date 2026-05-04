@@ -23,6 +23,33 @@ def test_wrap_proxy_len(ctx):
     assert 2 == len(tex_array.wrap)
 
 
+def test_wrap_proxy_setitem_unknown_key_raises(ctx):
+    """Subscript assignment with a key the texture type doesn't have
+    should raise KeyError, not silently no-op. Whole-dict assignment
+    stays lenient by design (see test_texture.py for the cross-type
+    extras case)."""
+    tex2d = ctx.texture((4, 4), 4)
+    try:
+        tex2d.wrap['z'] = 'repeat'  # Texture has no z axis
+    except KeyError:
+        pass
+    else:
+        assert False, "expected KeyError on subscript with unknown key"
+
+    sampler = ctx.sampler()
+    try:
+        sampler.wrap['typo'] = 'repeat'
+    except KeyError:
+        pass
+    else:
+        assert False, "expected KeyError on subscript with unknown key"
+
+    # Synonyms are valid and must not raise.
+    sampler.wrap['s'] = 'repeat'
+    sampler.wrap['t'] = 'repeat'
+    sampler.wrap['r'] = 'repeat'
+
+
 def test_set_repeat_value_no_leak_on_invalid_value(ctx):
     """Regression: assigning a non-bool to `repeat_*` used to leak a dict
     per call. set_repeat_value allocated `dict` and `key` up front and

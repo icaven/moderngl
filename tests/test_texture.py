@@ -71,10 +71,10 @@ def test_texture_properties(ctx):
     assert invalid_value_exception_caught
     try:
         tex.wrap['invalid'] = 'repeat'
-        unknown_key_ignored = True
-    except RuntimeError:
-        unknown_key_ignored = False
-    assert unknown_key_ignored
+        unknown_key_raised = False
+    except KeyError:
+        unknown_key_raised = True
+    assert unknown_key_raised
     assert tex.dtype == 'f1'
     assert tex.anisotropy == 0.0
 
