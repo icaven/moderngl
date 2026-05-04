@@ -183,6 +183,45 @@ def test_handle_list_empty(ctx):
         prog["Textures"].handle = []
 
 
+def test_handle_scalar_to_array_uniform(ctx):
+    """Tests that assigning a scalar handle to an array uniform is rejected.
+
+    Without this check, the scalar would silently be written to slot 0 of
+    the array via ProgramUniformHandleui64ARB, leaving slots 1..N-1
+    untouched. That's almost always a bug (forgot to wrap in a list).
+    """
+    if not ctx.supports_bindless:
+        pytest.skip("Bindless textures not supported")
+
+    prog = ctx.program(
+        vertex_shader="""
+            #version 440
+            void main() {
+                gl_Position = vec4(0.0);
+            }
+        """,
+        fragment_shader="""
+            #version 440
+            #extension GL_ARB_bindless_texture : require
+            layout (bindless_sampler) uniform sampler2D Textures[3];
+            out vec4 fragColor;
+            void main() {
+                fragColor = texture(Textures[0], vec2(0.5)) +
+                            texture(Textures[1], vec2(0.5)) +
+                            texture(Textures[2], vec2(0.5));
+            }
+        """,
+    )
+
+    texture = ctx.texture((4, 4), 4)
+    handle = texture.get_handle()
+
+    with pytest.raises(ValueError, match="uniform array of length 3 .* list"):
+        prog["Textures"].handle = handle
+
+    texture.release()
+
+
 def test_handle_list_non_integer_elements(ctx):
     """Tests that non-integer elements in handle list raise TypeError."""
     if not ctx.supports_bindless:
