@@ -625,7 +625,7 @@ class WrapProxy:
     def __iter__(self):
         return iter(self._mglo.wrap.keys())
     def __len__(self):
-        return self._mglo.wrap.size()
+        return len(self._mglo.wrap)
     def keys(self): return list(iter(self._mglo.wrap.keys()))
 
 class Sampler:
