@@ -1,7 +1,5 @@
 #define PY_SSIZE_T_CLEAN
-#include <functional>
 #include <Python.h>
-#include <string>
 
 #include "gl_methods.hpp"
 
@@ -3131,7 +3129,7 @@ static int SetWrapMode(const GLMethodPtr gl_method, const int field, PyObject* u
     {
         if (v && !PyUnicode_Check(v))
         {
-            MGLError_Set(("Value for key "+ std::string(k) + " must be a string").c_str());
+            MGLError_Set("Value for key %s must be a string", k);
             return -1;
         }
     }
@@ -3139,8 +3137,8 @@ static int SetWrapMode(const GLMethodPtr gl_method, const int field, PyObject* u
     if (wrap_obj && synonym_wrap_obj && PyUnicode_Compare(wrap_obj, synonym_wrap_obj) != 0)
     {
         MGLError_Set(
-            (" Both the key '"+ std::string(key) + "' and its synonym '"+ std::string(synonym_key) +
-                "' were given, but with different values").c_str());
+            " Both the key '%s' and its synonym '%s' were given, but with different values",
+            key, synonym_key);
         return -1;
     }
 
@@ -3155,7 +3153,7 @@ static int SetWrapMode(const GLMethodPtr gl_method, const int field, PyObject* u
     const int wrap_constant = wrap_string_to_constant(wrap_str);
     if (!wrap_constant)
     {
-        MGLError_Set(("invalid wrap mode for '" + std::string(key_used) + "'").c_str());
+        MGLError_Set("invalid wrap mode for '%s'", key_used);
         return -1;
     }
     gl_method(field, pname, wrap_constant);
@@ -3232,7 +3230,7 @@ static int set_repeat_value(T* self, const SetFunctionPtr<T> set_function, const
                               : nullptr;
     if (!str_value)
     {
-        MGLError_Set((std::string("invalid value for texture_") + std::string(key_string)).c_str());
+        MGLError_Set("invalid value for texture_%s", key_string);
         return -1;
     }
     PyDict_SetItem(dict, key, str_value);
