@@ -15,13 +15,13 @@ def test_single_handle_backward_compatibility(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Texture;
             out vec4 fragColor;
@@ -47,13 +47,13 @@ def test_handle_list_correct_length(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -84,13 +84,13 @@ def test_handle_list_wrong_length_too_many(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -122,13 +122,13 @@ def test_handle_list_wrong_length_too_few(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -160,13 +160,13 @@ def test_handle_list_empty(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -195,13 +195,13 @@ def test_handle_scalar_to_array_uniform(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -229,13 +229,13 @@ def test_handle_list_non_integer_elements(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -259,13 +259,13 @@ def test_handle_list_mixed_types(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -294,13 +294,13 @@ def test_handle_large_array(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[16];
             out vec4 fragColor;
@@ -333,13 +333,13 @@ def test_handle_uniform_not_array(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Texture;
             out vec4 fragColor;
@@ -367,13 +367,13 @@ def test_handle_negative_location(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             out vec4 fragColor;
             void main() {
                 fragColor = vec4(1.0);
@@ -393,13 +393,13 @@ def test_handle_integer_overflow(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[2];
             out vec4 fragColor;
@@ -425,13 +425,13 @@ def test_get_single_handle(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Texture;
             out vec4 fragColor;
@@ -462,13 +462,13 @@ def test_get_handle_array(ctx):
 
     prog = ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             void main() {
                 gl_Position = vec4(0.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             out vec4 fragColor;
@@ -512,14 +512,14 @@ def test_bindless_texture_array_integration(bindless_ctx, bindless_textures, ndc
     # Create a shader that samples from a texture array
     prog = bindless_ctx.program(
         vertex_shader="""
-            #version 440
+            #version 330
             in vec2 in_vert;
             void main() {
                 gl_Position = vec4(in_vert, 0.0, 1.0);
             }
         """,
         fragment_shader="""
-            #version 440
+            #version 330
             #extension GL_ARB_bindless_texture : require
             layout (bindless_sampler) uniform sampler2D Textures[3];
             uniform int texIndex;
