@@ -4,8 +4,24 @@ Tests for bindless texture handle functionality.
 Tests the new ability to assign lists of texture handles to uniform arrays,
 which was added to support bindless texture arrays in OpenGL.
 """
+import ctypes
 import pytest
 import moderngl
+
+
+def _load_is_resident(ctx):
+    """Returns a callable wrapping glIsTextureHandleResidentARB.
+
+    PyOpenGL's static binding for this ARB-extension entry point can't be
+    resolved against an EGL context, so we load the function pointer
+    directly via the glcontext attached to the moderngl Context and wrap
+    it with ctypes.
+    """
+    fn_ptr = ctx.mglo._context.load_opengl_function("glIsTextureHandleResidentARB")
+    if not fn_ptr:
+        return None
+    prototype = ctypes.CFUNCTYPE(ctypes.c_ubyte, ctypes.c_uint64)
+    return prototype(fn_ptr)
 
 
 def test_single_handle_backward_compatibility(ctx):
@@ -37,6 +53,12 @@ def test_single_handle_backward_compatibility(ctx):
     # Should work without raising an exception
     prog["Texture"].handle = handle
 
+    # Safe to release after assigning the handle: texture.release() makes
+    # the bindless handle non-resident before deleting the texture, which
+    # the GL spec requires. The uniform's stored handle becomes dangling,
+    # so don't sample from it after this point. Always release textures
+    # this way (or rely on a context with gc_mode="auto") to avoid leaking
+    # resident handles.
     texture.release()
 
 
@@ -541,6 +563,82 @@ def test_get_handle_array(ctx):
     # Cleanup
     for tex in textures:
         tex.release()
+
+
+def test_bindless_state_machine_no_gl_errors(ctx):
+    """Exercises the BindlessHandleState transitions and asserts no GL
+    error is generated.
+
+    Per the GL_ARB_bindless_texture spec, each of the following is an
+    INVALID_OPERATION:
+      - MakeTextureHandleResidentARB on an already-resident handle
+      - MakeTextureHandleNonResidentARB on a non-resident handle
+      - Deleting a texture whose handle is still resident
+
+    The state machine in BindlessHandleState exists to short-circuit
+    the redundant transitions and to non-resident-then-delete on
+    release. If a future refactor breaks any of those guards, this
+    test catches the resulting GL error.
+    """
+    if not ctx.supports_bindless:
+        pytest.skip("Bindless textures not supported")
+
+    is_resident = _load_is_resident(ctx)
+    if is_resident is None:
+        pytest.skip("Could not load glIsTextureHandleResidentARB")
+
+    def assert_clean(label):
+        err = ctx.error
+        assert err == "GL_NO_ERROR", f"GL error after {label}: {err}"
+
+    def assert_resident(handle, expected, label):
+        actual = bool(is_resident(handle))
+        assert actual == expected, (
+            f"After {label}: expected resident={expected}, GL says {actual}"
+        )
+
+    assert_clean("baseline")
+
+    # 1. get_handle is memoized: two resident=True calls in a row must
+    #    not double-call MakeTextureHandleResidentARB.
+    tex = ctx.texture((4, 4), 4)
+    h1 = tex.get_handle(resident=True)
+    assert_clean("first get_handle(resident=True)")
+    assert_resident(h1, True, "first get_handle(resident=True)")
+    h2 = tex.get_handle(resident=True)
+    assert_clean("second get_handle(resident=True)")
+    assert_resident(h2, True, "second get_handle(resident=True)")
+    assert h1 == h2, "get_handle should return the same handle each call"
+
+    # 2. Toggle resident -> non-resident -> resident.
+    tex.get_handle(resident=False)
+    assert_clean("toggle to non-resident")
+    assert_resident(h1, False, "toggle to non-resident")
+    tex.get_handle(resident=False)
+    assert_clean("redundant non-resident (should be no-op)")
+    assert_resident(h1, False, "redundant non-resident")
+    tex.get_handle(resident=True)
+    assert_clean("toggle back to resident")
+    assert_resident(h1, True, "toggle back to resident")
+
+    # 3. Release while resident: state machine must non-res first. Can't
+    #    query residency after release -- the handle is invalid.
+    tex.release()
+    assert_clean("release while resident")
+
+    # 4. Release without ever obtaining a handle: must be a clean no-op
+    #    for the bindless side, just delete the texture.
+    untouched = ctx.texture((4, 4), 4)
+    untouched.release()
+    assert_clean("release without get_handle")
+
+    # 5. Get a handle but never make it resident, then release.
+    no_res = ctx.texture((4, 4), 4)
+    h_no_res = no_res.get_handle(resident=False)
+    assert_clean("get_handle(resident=False) on fresh texture")
+    assert_resident(h_no_res, False, "get_handle(resident=False) on fresh texture")
+    no_res.release()
+    assert_clean("release without ever being resident")
 
 
 def test_bindless_texture_array_integration(bindless_ctx, bindless_textures, ndc_quad):
