@@ -1835,16 +1835,14 @@ class Context:
 
     @property
     def supports_bindless(self):
-        if self.version_code >= 440:
-            return True
-
-        if "GL_ARB_bindless_texture" in self.extensions:
-            return True
-
-        if "GL_NV_bindless_texture" in self.extensions:
-            return True
-
-        return False
+        # GL_ARB_bindless_texture is not in core OpenGL, even in 4.6 -- the
+        # extension must be explicitly exposed by the implementation. Mesa's
+        # software rasterizers report a high version_code but don't implement
+        # bindless, so a version-based check would be a false positive there.
+        return (
+            "GL_ARB_bindless_texture" in self.extensions
+            or "GL_NV_bindless_texture" in self.extensions
+        )
 
     @property
     def info(self):

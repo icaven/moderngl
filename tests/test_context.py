@@ -336,23 +336,29 @@ def test_supports_bindless_property(ctx):
     assert isinstance(ctx.supports_bindless, bool)
 
 
-def test_supports_bindless_gl44_core(ctx_new):
-    """Tests bindless support detection for OpenGL 4.4+ core."""
-    ctx = ctx_new
-    # If version is 4.4 or higher, should return True
-    if ctx.version_code >= 440:
-        assert ctx.supports_bindless is True
+def test_supports_bindless_requires_extension_not_just_version(ctx):
+    """Regression: GL_ARB_bindless_texture is not in core OpenGL, even at
+    4.6 -- the extension must be exposed by the implementation. A
+    version-based shortcut (e.g., `version_code >= 440 -> True`) is a
+    false positive on Mesa's software rasterizers, which report GL 4.6
+    but don't implement bindless. The CI failure on GitHub Actions
+    surfaced exactly this: `supports_bindless` returned True via the
+    version shortcut, then shader compilation failed with
+    "extension `GL_ARB_bindless_texture' unsupported"."""
+    has_arb = "GL_ARB_bindless_texture" in ctx.extensions
+    has_nv = "GL_NV_bindless_texture" in ctx.extensions
+    if not has_arb and not has_nv:
+        assert ctx.supports_bindless is False, (
+            "supports_bindless must be False without the extension, "
+            "regardless of GL version"
+        )
 
 
-def test_supports_bindless_extensions(ctx):
-    """Tests bindless support detection via extensions."""
-    # Check if any bindless extension is present
-    has_arb_bindless = "GL_ARB_bindless_texture" in ctx.extensions
-    has_nv_bindless = "GL_NV_bindless_texture" in ctx.extensions
-    is_gl44_or_higher = ctx.version_code >= 440
-
-    expected = is_gl44_or_higher or has_arb_bindless or has_nv_bindless
-    assert ctx.supports_bindless == expected
+def test_supports_bindless_matches_extension_presence(ctx):
+    """Tests that supports_bindless tracks the extension presence exactly."""
+    has_arb = "GL_ARB_bindless_texture" in ctx.extensions
+    has_nv = "GL_NV_bindless_texture" in ctx.extensions
+    assert ctx.supports_bindless == (has_arb or has_nv)
 
 
 def test_bindless_not_supported_gracefully(ctx):
