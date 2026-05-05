@@ -77,7 +77,18 @@ struct MGLDataType {
     bool float_type;
 };
 
-// Encapsulates bindless texture handle state
+// Encapsulates per-texture bindless handle state: the handle itself, whether
+// it has been obtained from the driver, and whether it is currently resident.
+//
+// IMPORTANT: this struct is embedded in MGLTexture, MGLTexture3D,
+// MGLTextureArray, and MGLTextureCube, all of which are allocated via
+// PyObject_New(). PyObject_New() returns raw uninitialized memory and does
+// NOT invoke C++ constructors -- which is why this struct has none. Every
+// site that constructs one of those texture objects MUST call
+// `texture->bindless_state.reset()` immediately after PyObject_New(), before
+// any code reads these fields. Otherwise `release()` (called from
+// MGL*_release) would read garbage and call MakeTextureHandleNonResidentARB
+// on a random handle.
 struct BindlessHandleState {
     unsigned long long handle;
     bool obtained;
