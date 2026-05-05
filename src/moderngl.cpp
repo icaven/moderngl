@@ -94,7 +94,6 @@ struct BindlessHandleState {
     bool obtained;
     bool resident;
 
-
     // Get or create the handle
     unsigned long long get_handle(const GLMethods & gl, const int texture_obj) {
         if (!obtained) {
@@ -8238,10 +8237,10 @@ static PyObject * MGLContext_write_uniform(MGLContext * self, PyObject * args) {
     Py_RETURN_NONE;
 }
 
-static PyObject * MGLContext_set_uniform_handle(MGLContext * self, PyObject *args) {
+static PyObject * MGLContext_set_uniform_handle(MGLContext * self, PyObject * args) {
     unsigned int program_obj;
     int location;
-    PyObject *handle_arg; // Generic object for the third argument
+    PyObject * handle_arg; // Generic object for the third argument
 
     // Use 'O' to get the third argument as a PyObject*
     if (!PyArg_ParseTuple(args, "IIO", &program_obj, &location, &handle_arg)) {
@@ -8283,20 +8282,20 @@ static PyObject * MGLContext_set_uniform_handle(MGLContext * self, PyObject *arg
         const Py_ssize_t count = PyList_Size(handle_arg);
 
         // Allocate memory for the C array of handles
-        auto* handles = static_cast<GLuint64*>(PyMem_Malloc(count * sizeof(GLuint64)));
+        GLuint64 * handles = (GLuint64 *)PyMem_Malloc(count * sizeof(GLuint64));
         if (!handles) {
             return PyErr_NoMemory();
         }
 
         // Iterate through the Python list and populate the C array
         for (Py_ssize_t i = 0; i < count; ++i) {
-            PyObject *item = PyList_GetItem(handle_arg, i); // Borrows reference
+            PyObject * item = PyList_GetItem(handle_arg, i); // Borrows reference
             if (!PyLong_Check(item)) {
                 PyMem_Free(handles); // Clean up allocated memory before returning
                 PyErr_SetString(PyExc_TypeError, "All items in handle list must be integers.");
                 return nullptr;
             }
-            handles[i] = static_cast<GLuint64>(PyLong_AsUnsignedLongLong(item));
+            handles[i] = (GLuint64)PyLong_AsUnsignedLongLong(item);
             if (PyErr_Occurred()) {
                 PyMem_Free(handles);
                 return nullptr; // Conversion error
@@ -8316,7 +8315,7 @@ static PyObject * MGLContext_set_uniform_handle(MGLContext * self, PyObject *arg
             return nullptr;
         }
 
-        self->gl.ProgramUniformHandleui64vARB(program_obj, location, static_cast<GLsizei>(count), handles);
+        self->gl.ProgramUniformHandleui64vARB(program_obj, location, (GLsizei)count, handles);
 
         // Free the memory after use
         PyMem_Free(handles);
@@ -8394,7 +8393,7 @@ static PyObject * MGLContext_get_uniform_handle(const MGLContext * self, PyObjec
     }
 
     // Allocate array for handles
-    auto* handles = static_cast<GLuint64*>(PyMem_Malloc(array_length * sizeof(GLuint64)));
+    GLuint64 * handles = (GLuint64 *)PyMem_Malloc(array_length * sizeof(GLuint64));
     if (!handles) {
         return PyErr_NoMemory();
     }
@@ -8405,17 +8404,17 @@ static PyObject * MGLContext_get_uniform_handle(const MGLContext * self, PyObjec
 
     // Return single int or list based on array_length
     if (array_length == 1) {
-        PyObject* result = PyLong_FromUnsignedLongLong(handles[0]);
+        PyObject * result = PyLong_FromUnsignedLongLong(handles[0]);
         PyMem_Free(handles);
         return result;
     } else {
-        PyObject* result = PyList_New(array_length);
+        PyObject * result = PyList_New(array_length);
         if (!result) {
             PyMem_Free(handles);
             return nullptr;
         }
         for (int i = 0; i < array_length; i++) {
-            PyObject* handle = PyLong_FromUnsignedLongLong(handles[i]);
+            PyObject * handle = PyLong_FromUnsignedLongLong(handles[i]);
             if (!handle) {
                 Py_DECREF(result);
                 PyMem_Free(handles);

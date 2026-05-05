@@ -352,19 +352,18 @@ def test_handle_uniform_not_array(ctx):
     texture = ctx.texture((4, 4), 4)
     handle = texture.get_handle()
 
-    # For a non-array uniform, array_length should be 1
-    # So a list with 1 element should work
-    if prog["Texture"].array_length == 1:
-        prog["Texture"].handle = [handle]
+    # For a non-array uniform, array_length must be 1, and a list with 1
+    # element should work.
+    assert prog["Texture"].array_length == 1
+    prog["Texture"].handle = [handle]
 
     texture.release()
 
 
-def test_handle_negative_location(ctx):
-    """Tests that invalid uniform location is caught."""
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
+def test_nonexistent_uniform_not_in_program(ctx):
+    """Tests that a uniform absent from the shader doesn't appear in prog's
+    member dict. Doesn't exercise bindless; lives here for proximity to the
+    other handle-related tests."""
     prog = ctx.program(
         vertex_shader="""
             #version 330
@@ -381,8 +380,6 @@ def test_handle_negative_location(ctx):
         """,
     )
 
-    # Try to access a uniform that doesn't exist
-    # This should either not exist in prog dict or handle gracefully
     assert "NonExistentUniform" not in prog
 
 
