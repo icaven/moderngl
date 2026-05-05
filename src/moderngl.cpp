@@ -8330,6 +8330,29 @@ static PyObject * MGLContext_set_uniform_handle(MGLContext * self, PyObject *arg
     Py_RETURN_NONE;
 }
 
+// Returns the array size of the active uniform whose base location matches
+// `location`, or -1 if no such uniform is found in the program. Used by
+// MGLContext_get_uniform_handle to bound the GL readback safely; without
+// this, a caller-supplied array_length that's smaller than the program's
+// actual array size would cause glGetUniformui64v to overflow our buffer.
+static int lookup_uniform_array_size(const GLMethods & gl, unsigned int program_obj,
+                                     int location) {
+    int num_uniforms = 0;
+    gl.GetProgramiv(program_obj, GL_ACTIVE_UNIFORMS, &num_uniforms);
+    for (int i = 0; i < num_uniforms; i++) {
+        char name[256];
+        int name_len = 0;
+        int size = 0;
+        unsigned int type = 0;
+        gl.GetActiveUniform(program_obj, i, sizeof(name), &name_len, &size,
+                            (GLenum *)&type, name);
+        if (gl.GetUniformLocation(program_obj, name) == location) {
+            return size;
+        }
+    }
+    return -1;
+}
+
 static PyObject * MGLContext_get_uniform_handle(const MGLContext * self, PyObject * args) {
     unsigned int program_obj;
     int location;
@@ -8342,6 +8365,25 @@ static PyObject * MGLContext_get_uniform_handle(const MGLContext * self, PyObjec
     // Validate array_length
     if (array_length < 1) {
         PyErr_SetString(PyExc_ValueError, "array_length must be at least 1.");
+        return nullptr;
+    }
+
+    // Bound the read by the program's actual array size at this location.
+    // glGetUniformui64v doesn't take a count parameter -- it writes all
+    // elements of the uniform into the supplied buffer. If the caller's
+    // array_length is wrong, we either heap-overflow (too small) or return
+    // garbage in the trailing slots (too large). Reject both.
+    const int actual_size = lookup_uniform_array_size(self->gl, program_obj, location);
+    if (actual_size < 0) {
+        PyErr_Format(PyExc_ValueError,
+                     "no active uniform with base location %d in program %u",
+                     location, program_obj);
+        return nullptr;
+    }
+    if (actual_size != array_length) {
+        PyErr_Format(PyExc_ValueError,
+                     "array_length mismatch: caller passed %d, program has %d",
+                     array_length, actual_size);
         return nullptr;
     }
 

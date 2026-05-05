@@ -418,6 +418,53 @@ def test_handle_integer_overflow(ctx):
         prog["Textures"].handle = [huge_number, huge_number]
 
 
+def test_get_uniform_handle_rejects_array_length_mismatch(ctx):
+    """Regression: _get_uniform_handle must reject a caller-supplied
+    array_length that disagrees with the program's actual array size.
+
+    Without the C-side check, an undersized array_length causes
+    glGetUniformui64v to overflow our PyMem_Malloc'd buffer (heap
+    corruption). The check must catch the mismatch even when the
+    Python wrapper is bypassed -- e.g. by mutating Uniform.array_length
+    or calling ctx._get_uniform_handle directly.
+    """
+    if not ctx.supports_bindless:
+        pytest.skip("Bindless textures not supported")
+
+    prog = ctx.program(
+        vertex_shader="""
+            #version 330
+            void main() { gl_Position = vec4(0.0); }
+        """,
+        fragment_shader="""
+            #version 330
+            #extension GL_ARB_bindless_texture : require
+            layout (bindless_sampler) uniform sampler2D Textures[16];
+            out vec4 fragColor;
+            void main() {
+                vec4 c = vec4(0.0);
+                for (int i = 0; i < 16; i++) c += texture(Textures[i], vec2(0.5));
+                fragColor = c;
+            }
+        """,
+    )
+
+    uniform = prog["Textures"]
+    assert uniform.array_length == 16
+
+    # Direct call to the underlying C method bypasses Uniform.handle entirely.
+    with pytest.raises(ValueError, match="array_length mismatch"):
+        uniform.ctx._get_uniform_handle(uniform.program_obj, uniform.location, 1)
+    with pytest.raises(ValueError, match="array_length mismatch"):
+        uniform.ctx._get_uniform_handle(uniform.program_obj, uniform.location, 100)
+
+    # Mutating Uniform.array_length goes through the public accessor.
+    uniform.array_length = 1
+    with pytest.raises(ValueError, match="array_length mismatch"):
+        _ = uniform.handle
+    uniform.array_length = 16  # restore
+
+
 def test_get_single_handle(ctx):
     """Tests that getting a single handle works."""
     if not ctx.supports_bindless:
