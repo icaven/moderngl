@@ -9,6 +9,34 @@ import pytest
 import moderngl
 
 
+@pytest.fixture
+def make_sampler_array_program(ctx):
+    """Returns a callable that creates a minimal `#version 330` program with
+    `sampler2D Textures[count]` and no bindless extension.
+
+    Used by tests that exercise Uniform.handle's Python-side validation or
+    the C-side pre-GL guards in `_set_uniform_handle` / `_get_uniform_handle`
+    -- those checks all fire before any bindless GL call, so the test only
+    needs a uniform with a known array_length. This lets the validation
+    tests run on any GL >= 3.3 context (e.g., Mesa CI), separating wrapper-
+    logic regressions from end-to-end bindless behavior.
+    """
+    def make(count):
+        return ctx.program(
+            vertex_shader="""
+                #version 330
+                void main() { gl_Position = vec4(0.0); }
+            """,
+            fragment_shader=f"""
+                #version 330
+                uniform sampler2D Textures[{count}];
+                out vec4 fragColor;
+                void main() {{ fragColor = texture(Textures[0], vec2(0.5)); }}
+            """,
+        )
+    return make
+
+
 def _load_is_resident(ctx):
     """Returns a callable wrapping glIsTextureHandleResidentARB.
 
@@ -99,214 +127,53 @@ def test_handle_list_correct_length(ctx):
         tex.release()
 
 
-def test_handle_list_wrong_length_too_many(ctx):
-    """Tests that assigning too many handles raises ValueError."""
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() {
-                gl_Position = vec4(0.0);
-            }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[3];
-            out vec4 fragColor;
-            void main() {
-                fragColor = texture(Textures[0], vec2(0.5)) +
-                            texture(Textures[1], vec2(0.5)) +
-                            texture(Textures[2], vec2(0.5));
-            }
-        """,
-    )
-
-    # Create 5 textures but uniform array is size 3
-    textures = [ctx.texture((4, 4), 4) for _ in range(5)]
-    handles = [tex.get_handle() for tex in textures]
-
-    # Should raise ValueError about length mismatch
+def test_handle_list_wrong_length_too_many(make_sampler_array_program):
+    """Tests that assigning too many handles raises ValueError. The length
+    check fires in Python before any GL call, so this works on any context."""
+    prog = make_sampler_array_program(3)
     with pytest.raises(ValueError, match="has 5 elements but uniform array requires exactly 3"):
-        prog["Textures"].handle = handles
-
-    # Cleanup
-    for tex in textures:
-        tex.release()
+        prog["Textures"].handle = [1, 2, 3, 4, 5]
 
 
-def test_handle_list_wrong_length_too_few(ctx):
+def test_handle_list_wrong_length_too_few(make_sampler_array_program):
     """Tests that assigning too few handles raises ValueError."""
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() {
-                gl_Position = vec4(0.0);
-            }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[3];
-            out vec4 fragColor;
-            void main() {
-                fragColor = texture(Textures[0], vec2(0.5)) +
-                            texture(Textures[1], vec2(0.5)) +
-                            texture(Textures[2], vec2(0.5));
-            }
-        """,
-    )
-
-    # Create 2 textures but uniform array is size 3
-    textures = [ctx.texture((4, 4), 4) for _ in range(2)]
-    handles = [tex.get_handle() for tex in textures]
-
-    # Should raise ValueError about length mismatch
+    prog = make_sampler_array_program(3)
     with pytest.raises(ValueError, match="has 2 elements but uniform array requires exactly 3"):
-        prog["Textures"].handle = handles
-
-    # Cleanup
-    for tex in textures:
-        tex.release()
+        prog["Textures"].handle = [1, 2]
 
 
-def test_handle_list_empty(ctx):
+def test_handle_list_empty(make_sampler_array_program):
     """Tests that assigning an empty list is rejected."""
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() {
-                gl_Position = vec4(0.0);
-            }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[3];
-            out vec4 fragColor;
-            void main() {
-                fragColor = texture(Textures[0], vec2(0.5)) +
-                            texture(Textures[1], vec2(0.5)) +
-                            texture(Textures[2], vec2(0.5));
-            }
-        """,
-    )
-
-    # Should raise ValueError about length mismatch
+    prog = make_sampler_array_program(3)
     with pytest.raises(ValueError, match="has 0 elements but uniform array requires exactly 3"):
         prog["Textures"].handle = []
 
 
-def test_handle_scalar_to_array_uniform(ctx):
+def test_handle_scalar_to_array_uniform(make_sampler_array_program):
     """Tests that assigning a scalar handle to an array uniform is rejected.
 
     Without this check, the scalar would silently be written to slot 0 of
     the array via ProgramUniformHandleui64ARB, leaving slots 1..N-1
     untouched. That's almost always a bug (forgot to wrap in a list).
     """
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() {
-                gl_Position = vec4(0.0);
-            }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[3];
-            out vec4 fragColor;
-            void main() {
-                fragColor = texture(Textures[0], vec2(0.5)) +
-                            texture(Textures[1], vec2(0.5)) +
-                            texture(Textures[2], vec2(0.5));
-            }
-        """,
-    )
-
-    texture = ctx.texture((4, 4), 4)
-    handle = texture.get_handle()
-
+    prog = make_sampler_array_program(3)
     with pytest.raises(ValueError, match="uniform array of length 3 .* list"):
-        prog["Textures"].handle = handle
-
-    texture.release()
+        prog["Textures"].handle = 1
 
 
-def test_handle_list_non_integer_elements(ctx):
-    """Tests that non-integer elements in handle list raise TypeError."""
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() {
-                gl_Position = vec4(0.0);
-            }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[3];
-            out vec4 fragColor;
-            void main() {
-                fragColor = texture(Textures[0], vec2(0.5)) +
-                            texture(Textures[1], vec2(0.5)) +
-                            texture(Textures[2], vec2(0.5));
-            }
-        """,
-    )
-
-    # Try with strings
+def test_handle_list_non_integer_elements(make_sampler_array_program):
+    """Tests that non-integer elements in handle list raise TypeError. The
+    type check fires in C before the bindless GL call."""
+    prog = make_sampler_array_program(3)
     with pytest.raises(TypeError, match="All items in handle list must be integers"):
         prog["Textures"].handle = ["not", "an", "integer"]
 
 
-def test_handle_list_mixed_types(ctx):
+def test_handle_list_mixed_types(make_sampler_array_program):
     """Tests that mixing valid and invalid types raises TypeError."""
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() {
-                gl_Position = vec4(0.0);
-            }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[3];
-            out vec4 fragColor;
-            void main() {
-                fragColor = texture(Textures[0], vec2(0.5)) +
-                            texture(Textures[1], vec2(0.5)) +
-                            texture(Textures[2], vec2(0.5));
-            }
-        """,
-    )
-
-    texture = ctx.texture((4, 4), 4)
-    handle = texture.get_handle()
-
-    # Mix integer and string
+    prog = make_sampler_array_program(3)
     with pytest.raises(TypeError, match="All items in handle list must be integers"):
-        prog["Textures"].handle = [handle, "bad", handle]
-
-    texture.release()
+        prog["Textures"].handle = [1, "bad", 2]
 
 
 def test_handle_large_array(ctx):
@@ -405,39 +272,16 @@ def test_nonexistent_uniform_not_in_program(ctx):
     assert "NonExistentUniform" not in prog
 
 
-def test_handle_integer_overflow(ctx):
-    """Tests that integer overflow in handle values is caught."""
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() {
-                gl_Position = vec4(0.0);
-            }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[2];
-            out vec4 fragColor;
-            void main() {
-                fragColor = texture(Textures[0], vec2(0.5)) +
-                            texture(Textures[1], vec2(0.5));
-            }
-        """,
-    )
-
-    # Try with an absurdly large number that would overflow uint64
-    # Python integers can be arbitrarily large, so this tests C++ overflow handling
+def test_handle_integer_overflow(make_sampler_array_program):
+    """Tests that integer overflow in handle values is caught. The overflow
+    error fires in C (PyLong_AsUnsignedLongLong) before the bindless GL call."""
+    prog = make_sampler_array_program(2)
     huge_number = 2**128  # Way beyond uint64 max
-
     with pytest.raises((OverflowError, ValueError)):
         prog["Textures"].handle = [huge_number, huge_number]
 
 
-def test_get_uniform_handle_rejects_array_length_mismatch(ctx):
+def test_get_uniform_handle_rejects_array_length_mismatch(make_sampler_array_program):
     """Regression: _get_uniform_handle must reject a caller-supplied
     array_length that disagrees with the program's actual array size.
 
@@ -446,28 +290,11 @@ def test_get_uniform_handle_rejects_array_length_mismatch(ctx):
     corruption). The check must catch the mismatch even when the
     Python wrapper is bypassed -- e.g. by mutating Uniform.array_length
     or calling ctx._get_uniform_handle directly.
+
+    Uses a non-bindless sampler array because the array-length validation
+    in lookup_uniform_array_size relies only on core GL introspection.
     """
-    if not ctx.supports_bindless:
-        pytest.skip("Bindless textures not supported")
-
-    prog = ctx.program(
-        vertex_shader="""
-            #version 330
-            void main() { gl_Position = vec4(0.0); }
-        """,
-        fragment_shader="""
-            #version 330
-            #extension GL_ARB_bindless_texture : require
-            layout (bindless_sampler) uniform sampler2D Textures[16];
-            out vec4 fragColor;
-            void main() {
-                vec4 c = vec4(0.0);
-                for (int i = 0; i < 16; i++) c += texture(Textures[i], vec2(0.5));
-                fragColor = c;
-            }
-        """,
-    )
-
+    prog = make_sampler_array_program(16)
     uniform = prog["Textures"]
     assert uniform.array_length == 16
 
